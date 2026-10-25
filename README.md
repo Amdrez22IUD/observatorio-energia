@@ -32,18 +32,20 @@ NASA POWER se integra porque no requiere credenciales y aporta radiación solar,
 consultas/       Consultas SQL de ejemplo para DuckDB
 data/
   bronze/        Parquet descargados (no versionados)
-  insumos/       Archivo local de EnerAndes (no versionado)
+  insumos/       Archivo Excel de EnerAndes usado por el pipeline
   sample/        Muestras CSV pequeñas de fuentes públicas
 src/
   extract/       Un extractor por fuente
   config.py      Fechas, URLs, parámetros y rutas centrales
   pipeline.py    Punto de entrada de las extracciones
+  documentar_datos.py Exportación de muestras públicas y perfilamiento de bronce
   consultar.py   Ejecución de las consultas SQL
   perfilamiento.py Perfil reproducible de data/sample/
+docs/            Perfilamiento técnico de la capa bronce
 tests/           Pruebas automatizadas con pytest
 ```
 
-La arquitectura objetivo es `fuentes -> bronce -> plata -> oro -> análisis`. En bronce se conserva el dato descargado y se añaden `_fuente`, `_origen` y `_extraido_en` como metadatos de linaje. Los archivos completos de `data/bronze/` se generan localmente y se excluyen de Git; los CSV de `data/sample/` son solo ejemplos reducidos y versionados. No se incluye ni se debe publicar el Excel interno de EnerAndes.
+La arquitectura objetivo es `fuentes -> bronce -> plata -> oro -> análisis`. En bronce se conserva el dato descargado y se añaden `_fuente`, `_origen` y `_extraido_en` como metadatos de linaje. Los archivos completos de `data/bronze/` se generan localmente y se excluyen de Git; los CSV de `data/sample/` son ejemplos reducidos y versionados. El Excel de EnerAndes usado en esta actividad es recreativo y educativo, y se conserva junto con una muestra de sus salidas.
 
 ## Instalación y ejecución
 
@@ -62,16 +64,17 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
-Antes de ejecutar el pipeline, copia el archivo privado `ventas_enerandes_2023_2026.xlsx` en `data/insumos/`. El proyecto no lo contiene. Luego:
+El archivo `ventas_enerandes_2023_2026.xlsx` se encuentra en `data/insumos/` y está incluido en el repositorio como insumo recreativo y educativo. Luego:
 
 ```powershell
 python -m src.pipeline
+python -m src.documentar_datos
 python -m src.consultar
 python -m src.perfilamiento
 python -m pytest
 ```
 
-El pipeline omite los Parquet existentes; para descargarlos de nuevo:
+`src.documentar_datos` exporta a `data/sample/` las primeras 200 filas de cada Parquet disponible, incluidas las salidas de EnerAndes, y genera `docs/perfilamiento.md`. Vuelve a ejecutar este comando después de cada extracción para actualizar las muestras y el perfilamiento. El pipeline omite los Parquet existentes; para descargarlos de nuevo:
 
 ```powershell
 python -m src.pipeline --forzar
@@ -81,20 +84,7 @@ El rango principal se configura en `src/config.py`. XM limita las consultas hora
 
 ## Muestras y perfilamiento
 
-`data/sample/README.md` describe cada archivo de muestra. Las muestras públicas tienen como máximo diez filas por archivo, y no incluyen datos de EnerAndes. Se ejecuta el perfilamiento desde la raíz del repositorio con `python -m src.perfilamiento`. Los siguientes hallazgos se calculan sobre esas muestras pequeñas; son controles exploratorios, no conclusiones representativas del periodo completo:
-
-1. En la muestra de precio de XM (1–7 de enero de 2025), la media horaria es **347.70 COP/kWh**; el máximo es **620.17 COP/kWh**, el 2 de enero a la hora 19.
-2. En la muestra de demanda, el promedio más alto entre las 24 horas ocurre a la hora **20**; el máximo puntual es **10,815,785.93** el 7 de enero.
-3. Los diez recursos con generación muestreados el 1 de enero tienen promedios horarios que van de **41.85** a **19,244.23**.
-4. Los aportes de energía XM promedian **210,965,000.00** por día en los siete registros; el máximo es **273,468,600.00** el 5 de enero.
-5. El nivel de embalses pasa de **68.22%** a **69.47%** entre los extremos de la muestra, una diferencia de **+1.25 puntos porcentuales**.
-6. El listado de diez recursos consultados contiene **7 hidráulicos** y **3 térmicos**.
-7. Para diez estaciones IDEAM muestreadas el 1 de enero, la precipitación promedio es **0.54 mm**, con rango de **0.00 a 3.20 mm**.
-8. La temperatura media diaria promedio de diez estaciones IDEAM es **21.22 °C**; sus promedios por estación van de **16.27 a 27.36 °C**.
-9. En los siete días de NASA POWER, los promedios son **17.32 °C** de temperatura, **6.65 mm/día** de precipitación corregida y **4.28 kWh/m²/día** de radiación solar.
-10. Los diez registros estacionales NOAA muestreados para 2024 tienen anomalías ONI entre **-0.19 y 1.84 °C**.
-
-Al ser muestras cortas y de fechas/ubicaciones limitadas, no permiten inferir tendencias anuales, causalidad ni relaciones estadísticas entre fuentes. Para esos análisis se deben usar los Parquet completos, validar calidad y alinear fechas, zonas horarias, unidades y granularidades.
+`docs/perfilamiento.md` contiene el perfil técnico de cada Parquet público disponible y al menos cinco verificaciones de calidad con evidencia numérica. `src.perfilamiento` resume las muestras; al ser muestras cortas y de fechas/ubicaciones limitadas, no permiten inferir tendencias anuales, causalidad ni relaciones estadísticas entre fuentes. Para esos análisis se deben usar los Parquet completos, validar calidad y alinear fechas, zonas horarias, unidades y granularidades.
 
 ## Pruebas
 
