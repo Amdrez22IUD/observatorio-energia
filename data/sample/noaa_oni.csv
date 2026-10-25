@@ -1,0 +1,11 @@
+SEAS,YR,TOTAL,ANOM,_fuente,_origen,_extraido_en
+DJF,2024,28.38,1.84,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+JFM,2024,28.30,1.53,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+FMA,2024,28.40,1.18,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+MAM,2024,28.40,0.77,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+AMJ,2024,28.23,0.43,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+MJJ,2024,27.80,0.18,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+JJA,2024,27.35,0.06,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+JAS,2024,26.92,-0.04,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+ASO,2024,26.64,-0.12,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
+SON,2024,26.52,-0.19,NOAA,https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt,2026-10-25T07:55:24+00:00
