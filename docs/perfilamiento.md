@@ -1,6 +1,6 @@
 # Perfilamiento de la capa bronce
 
-Generado: 2026-10-25T14:56-05:00.
+Generado: 2026-10-25T15:34-05:00.
 
 Este reporte describe los Parquet encontrados en `data/bronze/` en el momento de su generación. Vuelva a generarlo después de ejecutar `python -m src.pipeline` para reflejar la extracción completa.
 
@@ -8,13 +8,13 @@ El archivo de EnerAndes usado en esta actividad es recreativo y educativo; se in
 
 ## Hallazgos de calidad
 
-1. El perfil cubre 9 archivos presentes, 8,707 filas y 98,036 celdas.
-2. Se encontraron 148 valores nulos explícitos (0.1510% de las celdas perfiladas).
-3. Se encontraron 120 filas duplicadas completas en los 8,707 registros perfilados.
-4. En las series horarias XM perfiladas hay 0 valores no numéricos/nulos entre 13,104 celdas horarias.
-5. NASA POWER no tiene Parquet local; el control del marcador `-999` no se ejecutó.
-6. Faltan localmente 5 archivos configurados para perfilar: ideam_temperatura_diaria, nasa_power_clima_diario, xm_aportes_energia, xm_generacion_recurso, xm_listado_recursos.
-7. Archivos cuya fecha mínima no alcanza el inicio configurado: ideam_precipitacion_diaria: inicia 2026-06-01, se esperaba desde 2025-01-01; xm_demanda: inicia 2026-01-01, se esperaba desde 2024-01-01; xm_embalses: inicia 2026-01-01, se esperaba desde 2024-01-01; xm_precio_bolsa: inicia 2026-01-01, se esperaba desde 2024-01-01.
+1. El perfil cubre 14 archivos presentes, 410,131 filas y 11,227,823 celdas.
+2. Se encontraron 148 valores nulos explícitos (0.0013% de las celdas perfiladas).
+3. Se encontraron 122 filas duplicadas completas en los 410,131 registros perfilados.
+4. En las series horarias XM hay 2,473,215 cadenas vacías (29.25%) y 0 valores no numéricos no vacíos, entre 8,456,856 celdas.
+5. NASA POWER contiene 61 valores de relleno `-999`.
+6. Faltan localmente 0 archivos configurados para perfilar: ninguno.
+7. Archivos cuya fecha mínima no alcanza el inicio configurado: ninguno.
 
 ## Archivos presentes
 
@@ -101,10 +101,10 @@ El archivo de EnerAndes usado en esta actividad es recreativo y educativo; se in
 
 ### `ideam_precipitacion_diaria.parquet`
 
-- Filas: **2,784**
+- Filas: **29,804**
 - Columnas: **11**
 - Filas duplicadas completas: **0**
-- Rango de fechas: fecha: 2026-06-01 a 2026-07-24
+- Rango de fechas: fecha: 2025-01-01 a 2026-07-24
 
 | Columna | Tipo | Nulos | Nulos (%) |
 | --- | --- | ---: | ---: |
@@ -116,6 +116,46 @@ El archivo de EnerAndes usado en esta actividad es recreativo y educativo; se in
 | `fecha` | `str` | 0 | 0.00% |
 | `precipitacion_mm` | `str` | 0 | 0.00% |
 | `n_obs` | `str` | 0 | 0.00% |
+| `_fuente` | `str` | 0 | 0.00% |
+| `_origen` | `str` | 0 | 0.00% |
+| `_extraido_en` | `str` | 0 | 0.00% |
+
+### `ideam_temperatura_diaria.parquet`
+
+- Filas: **17,349**
+- Columnas: **13**
+- Filas duplicadas completas: **0**
+- Rango de fechas: fecha: 2025-01-01 a 2026-07-24
+
+| Columna | Tipo | Nulos | Nulos (%) |
+| --- | --- | ---: | ---: |
+| `codigoestacion` | `str` | 0 | 0.00% |
+| `nombreestacion` | `str` | 0 | 0.00% |
+| `municipio` | `str` | 0 | 0.00% |
+| `latitud` | `str` | 0 | 0.00% |
+| `longitud` | `str` | 0 | 0.00% |
+| `fecha` | `str` | 0 | 0.00% |
+| `temperatura_promedio_c` | `str` | 0 | 0.00% |
+| `temperatura_minima_c` | `str` | 0 | 0.00% |
+| `temperatura_maxima_c` | `str` | 0 | 0.00% |
+| `n_obs` | `str` | 0 | 0.00% |
+| `_fuente` | `str` | 0 | 0.00% |
+| `_origen` | `str` | 0 | 0.00% |
+| `_extraido_en` | `str` | 0 | 0.00% |
+
+### `nasa_power_clima_diario.parquet`
+
+- Filas: **1,004**
+- Columnas: **7**
+- Filas duplicadas completas: **0**
+- Rango de fechas: fecha: 2024-01-01 a 2026-09-30
+
+| Columna | Tipo | Nulos | Nulos (%) |
+| --- | --- | ---: | ---: |
+| `fecha` | `str` | 0 | 0.00% |
+| `temperatura_2m_c` | `float64` | 0 | 0.00% |
+| `precipitacion_corregida_mm_dia` | `float64` | 0 | 0.00% |
+| `radiacion_solar_kwh_m2_dia` | `float64` | 0 | 0.00% |
 | `_fuente` | `str` | 0 | 0.00% |
 | `_origen` | `str` | 0 | 0.00% |
 | `_extraido_en` | `str` | 0 | 0.00% |
@@ -137,12 +177,28 @@ El archivo de EnerAndes usado en esta actividad es recreativo y educativo; se in
 | `_origen` | `str` | 0 | 0.00% |
 | `_extraido_en` | `str` | 0 | 0.00% |
 
+### `xm_aportes_energia.parquet`
+
+- Filas: **1,004**
+- Columnas: **6**
+- Filas duplicadas completas: **0**
+- Rango de fechas: Date: 2024-01-01 a 2026-09-30
+
+| Columna | Tipo | Nulos | Nulos (%) |
+| --- | --- | ---: | ---: |
+| `Date` | `str` | 0 | 0.00% |
+| `Id` | `str` | 0 | 0.00% |
+| `Value` | `str` | 0 | 0.00% |
+| `_fuente` | `str` | 0 | 0.00% |
+| `_origen` | `str` | 0 | 0.00% |
+| `_extraido_en` | `str` | 0 | 0.00% |
+
 ### `xm_demanda.parquet`
 
-- Filas: **273**
+- Filas: **1,004**
 - Columnas: **30**
 - Filas duplicadas completas: **0**
-- Rango de fechas: Date: 2026-01-01 a 2026-09-30
+- Rango de fechas: Date: 2024-01-01 a 2026-09-30
 
 | Columna | Tipo | Nulos | Nulos (%) |
 | --- | --- | ---: | ---: |
@@ -179,10 +235,10 @@ El archivo de EnerAndes usado en esta actividad es recreativo y educativo; se in
 
 ### `xm_embalses.parquet`
 
-- Filas: **273**
+- Filas: **1,004**
 - Columnas: **6**
 - Filas duplicadas completas: **0**
-- Rango de fechas: Date: 2026-01-01 a 2026-09-30
+- Rango de fechas: Date: 2024-01-01 a 2026-09-30
 
 | Columna | Tipo | Nulos | Nulos (%) |
 | --- | --- | ---: | ---: |
@@ -193,12 +249,76 @@ El archivo de EnerAndes usado en esta actividad es recreativo y educativo; se in
 | `_origen` | `str` | 0 | 0.00% |
 | `_extraido_en` | `str` | 0 | 0.00% |
 
-### `xm_precio_bolsa.parquet`
+### `xm_generacion_recurso.parquet`
 
-- Filas: **273**
+- Filas: **350,361**
 - Columnas: **30**
 - Filas duplicadas completas: **0**
-- Rango de fechas: Date: 2026-01-01 a 2026-09-30
+- Rango de fechas: Date: 2024-01-01 a 2026-09-30
+
+| Columna | Tipo | Nulos | Nulos (%) |
+| --- | --- | ---: | ---: |
+| `Date` | `str` | 0 | 0.00% |
+| `Id` | `str` | 0 | 0.00% |
+| `code` | `str` | 0 | 0.00% |
+| `Hour01` | `str` | 0 | 0.00% |
+| `Hour02` | `str` | 0 | 0.00% |
+| `Hour03` | `str` | 0 | 0.00% |
+| `Hour04` | `str` | 0 | 0.00% |
+| `Hour05` | `str` | 0 | 0.00% |
+| `Hour06` | `str` | 0 | 0.00% |
+| `Hour07` | `str` | 0 | 0.00% |
+| `Hour08` | `str` | 0 | 0.00% |
+| `Hour09` | `str` | 0 | 0.00% |
+| `Hour10` | `str` | 0 | 0.00% |
+| `Hour11` | `str` | 0 | 0.00% |
+| `Hour12` | `str` | 0 | 0.00% |
+| `Hour13` | `str` | 0 | 0.00% |
+| `Hour14` | `str` | 0 | 0.00% |
+| `Hour15` | `str` | 0 | 0.00% |
+| `Hour16` | `str` | 0 | 0.00% |
+| `Hour17` | `str` | 0 | 0.00% |
+| `Hour18` | `str` | 0 | 0.00% |
+| `Hour19` | `str` | 0 | 0.00% |
+| `Hour20` | `str` | 0 | 0.00% |
+| `Hour21` | `str` | 0 | 0.00% |
+| `Hour22` | `str` | 0 | 0.00% |
+| `Hour23` | `str` | 0 | 0.00% |
+| `Hour24` | `str` | 0 | 0.00% |
+| `_fuente` | `str` | 0 | 0.00% |
+| `_origen` | `str` | 0 | 0.00% |
+| `_extraido_en` | `str` | 0 | 0.00% |
+
+### `xm_listado_recursos.parquet`
+
+- Filas: **2,493**
+- Columnas: **14**
+- Filas duplicadas completas: **2**
+- Rango de fechas: Date: 2026-10-25 a 2026-10-25
+
+| Columna | Tipo | Nulos | Nulos (%) |
+| --- | --- | ---: | ---: |
+| `Date` | `str` | 0 | 0.00% |
+| `Id` | `str` | 0 | 0.00% |
+| `Code` | `str` | 0 | 0.00% |
+| `Name` | `str` | 0 | 0.00% |
+| `Type` | `str` | 0 | 0.00% |
+| `Disp` | `str` | 0 | 0.00% |
+| `RecType` | `str` | 0 | 0.00% |
+| `CompanyCode` | `str` | 0 | 0.00% |
+| `EnerSource` | `str` | 0 | 0.00% |
+| `OperStartdate` | `str` | 0 | 0.00% |
+| `State` | `str` | 0 | 0.00% |
+| `_fuente` | `str` | 0 | 0.00% |
+| `_origen` | `str` | 0 | 0.00% |
+| `_extraido_en` | `str` | 0 | 0.00% |
+
+### `xm_precio_bolsa.parquet`
+
+- Filas: **1,004**
+- Columnas: **30**
+- Filas duplicadas completas: **0**
+- Rango de fechas: Date: 2024-01-01 a 2026-09-30
 
 | Columna | Tipo | Nulos | Nulos (%) |
 | --- | --- | ---: | ---: |
@@ -235,8 +355,4 @@ El archivo de EnerAndes usado en esta actividad es recreativo y educativo; se in
 
 ## Archivos esperados no encontrados
 
-- `ideam_temperatura_diaria.parquet`
-- `nasa_power_clima_diario.parquet`
-- `xm_aportes_energia.parquet`
-- `xm_generacion_recurso.parquet`
-- `xm_listado_recursos.parquet`
+Todos los archivos esperados están disponibles.

@@ -92,15 +92,22 @@ def _hallazgos_calidad(datos: dict[str, pd.DataFrame]) -> list[str]:
         if nombre in {"xm_precio_bolsa", "xm_demanda", "xm_generacion_recurso"}
     ]
     celdas_horarias = 0
-    invalidas_horarias = 0
+    vacias_horarias = 0
+    no_numericas_horarias = 0
     for _, df in archivos_horarios:
         columnas_hora = [col for col in df.columns if col.startswith("Hour")]
-        valores = df[columnas_hora].apply(pd.to_numeric, errors="coerce")
+        crudas = df[columnas_hora]
+        valores = crudas.apply(pd.to_numeric, errors="coerce")
         celdas_horarias += int(valores.size)
-        invalidas_horarias += int(valores.isna().sum().sum())
+        vacias_horarias += int(crudas.apply(
+            lambda columna: columna.astype("string").str.strip().eq("").sum()
+        ).sum())
+        no_numericas_horarias += int((valores.isna() & crudas.ne("")).sum().sum())
 
     rangos_fuera_de_inicio = []
     for nombre, df in datos.items():
+        if nombre == "xm_listado_recursos":
+            continue
         columna_fecha = next(
             (col for col in df.columns if col.lower() in {"date", "fecha"}),
             None,
@@ -136,8 +143,10 @@ def _hallazgos_calidad(datos: dict[str, pd.DataFrame]) -> list[str]:
             f"en los {filas_perfiladas:,} registros perfilados."
         ),
         (
-            f"En las series horarias XM perfiladas hay {invalidas_horarias:,} valores "
-            f"no numéricos/nulos entre {celdas_horarias:,} celdas horarias."
+            f"En las series horarias XM hay {vacias_horarias:,} cadenas vacías "
+            f"({vacias_horarias / celdas_horarias * 100 if celdas_horarias else 0:.2f}%) "
+            f"y {no_numericas_horarias:,} valores no numéricos no vacíos, "
+            f"entre {celdas_horarias:,} celdas."
         ),
         (
             (
