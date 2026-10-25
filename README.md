@@ -100,6 +100,10 @@ Cubren el aplanamiento de las respuestas de XM y NASA POWER, consultas a IDEAM, 
 
 Cada integrante debe registrar al menos tres commits propios, abrir al menos un PR propio, completar su bitácora y entregar un video individual de máximo cinco minutos. Estos elementos los completa cada integrante; los commits y PR de una persona no sustituyen los de los demás.
 
+### Sustentación de la actividad 1
+
+[Ver el video de sustentación](https://drive.google.com/file/d/1nc-ePc2dakYezfVAF5iRt7wP4uL8f6E9/view?usp=sharing).
+
 Para la entrega final, crear y publicar la etiqueta acordada:
 
 ```powershell
