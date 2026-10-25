@@ -55,3 +55,23 @@ def test_reporte_incluye_perfil_por_columna_y_archivos_enerandes(
     assert "2024-01-01 a 2024-01-02" in reporte
     assert "recreativo y educativo" in reporte
     assert "## Archivos esperados no encontrados" in reporte
+
+
+def test_hallazgos_distingue_celdas_horarias_vacias_y_catalogo_sin_rango():
+    datos = {
+        "xm_generacion_recurso": pd.DataFrame({
+            "Date": ["2024-01-01"],
+            "Hour01": [""],
+            "Hour02": ["no-numérico"],
+        }),
+        "xm_listado_recursos": pd.DataFrame({
+            "Date": ["2026-10-25"],
+            "Name": ["RECURSO"],
+        }),
+    }
+
+    hallazgos = documentar_datos._hallazgos_calidad(datos)
+
+    assert any("1 cadenas vacías" in hallazgo for hallazgo in hallazgos)
+    assert any("1 valores no numéricos no vacíos" in hallazgo for hallazgo in hallazgos)
+    assert not any("xm_listado_recursos: inicia" in hallazgo for hallazgo in hallazgos)
