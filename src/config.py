@@ -42,9 +42,12 @@ XM_METRICAS = [
 IDEAM_URL = "https://www.datos.gov.co/resource/s54a-sgyg.json"   # precipitacion
 IDEAM_DEPARTAMENTO = "ANTIOQUIA"
 IDEAM_DIAS_VENTANA = 7          # pedir de a una semana evita timeouts del servidor
-# El IDEAM es la fuente MAS LENTA (5 a 30 s por semana). Para la clase pedimos
-# solo jun-sep 2026. Para el proyecto, usen el mismo rango de las demas fuentes.
-IDEAM_FECHA_INICIO = date(2026, 6, 1)
+IDEAM_FECHA_INICIO = date(2025, 1, 1)
+IDEAM_TEMPERATURA_URL = "https://www.datos.gov.co/resource/sbwg-7ju4.json"
+IDEAM_TEMPERATURA_SENSORES = (
+    "GPRS - TEMPERATURA DEL AIRE A 2 m",
+    "TEMPERATURA DEL AIRE A 2 m",
+)
 
 # --- Fuente 3: NOAA, indice de El Nino (archivo de texto) ------------------
 NOAA_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"

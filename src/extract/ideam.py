@@ -1,6 +1,7 @@
 """
 Fuente 2 - IDEAM en datos.gov.co (plataforma Socrata, lenguaje de consulta SoQL).
   - El dataset tiene MILLONES de observaciones (una cada pocos minutos desde 2005)
+  - Filtramos precipitacion y temperatura en Antioquia desde 2025.
   - Por eso FILTRAMOS ($where) y AGREGAMOS ($select + $group) EN EL SERVIDOR:
     viaja un resumen diario por estacion, no millones de filas
   - Ademas paginamos con $limit / $offset por si una ventana trae muchas filas
@@ -9,6 +10,9 @@ Documentacion SoQL: https://dev.socrata.com/docs/queries/
 # ---------------------------------------------------------------------------
 # IMPORTS (traer codigo que ya existe)
 # ---------------------------------------------------------------------------
+from collections.abc import Callable
+from datetime import date
+
 import pandas as pd     # pandas: libreria de tablas. "as pd" le pone el nombre corto pd.
                         # Aqui se usa para convertir la lista de filas en tabla (DataFrame).
 
@@ -25,6 +29,7 @@ from src.utils import guardar_bronce, http_json, log, ventanas, ya_existe
 # CONSTANTES: valores fijos de este extractor (en MAYUSCULAS por convencion)
 # ---------------------------------------------------------------------------
 NOMBRE = "ideam_precipitacion_diaria"     # nombre del archivo en bronce
+NOMBRE_TEMPERATURA = "ideam_temperatura_diaria"
 CAMPOS = "codigoestacion, nombreestacion, municipio, latitud, longitud"   # columnas que se piden
 PAGINA = 50000                            # filas maximas por pedido ($limit)
 
@@ -52,27 +57,61 @@ def consulta_soql(inicio, fin, offset: int) -> dict:
     }
 
 
-def extraer(forzar: bool = False) -> None:
-    """Descarga la lluvia diaria por estacion, semana por semana, y la guarda en bronce."""
-    # forzar: bool = False -> si no se indica nada, forzar vale False (no repetir descargas).
-    log("IDEAM - datos abiertos (SoQL)")
-    if ya_existe(NOMBRE, forzar):                 # si el archivo ya esta en bronce...
-        return                                    # ...termina aqui, sin descargar
-    filas = []                                    # aqui se juntan las filas de todas las semanas
+def consulta_temperatura(inicio: date, fin: date, offset: int) -> dict:
+    """Arma los parametros SoQL para resumir la temperatura diaria por estacion."""
+    sensores = ", ".join(f"'{sensor}'" for sensor in config.IDEAM_TEMPERATURA_SENSORES)
+    return {
+        "$select": f"{CAMPOS}, date_trunc_ymd(fechaobservacion) AS fecha, "
+                   "avg(valorobservado) AS temperatura_promedio_c, "
+                   "min(valorobservado) AS temperatura_minima_c, "
+                   "max(valorobservado) AS temperatura_maxima_c, count(*) AS n_obs",
+        "$where": f"departamento = '{config.IDEAM_DEPARTAMENTO}' AND "
+                  f"descripcionsensor IN ({sensores}) AND "
+                  f"fechaobservacion BETWEEN '{inicio}T00:00:00' AND '{fin}T23:59:59'",
+        "$group": f"{CAMPOS}, fecha",
+        "$order": "fecha, codigoestacion",
+        "$limit": PAGINA,
+        "$offset": offset,
+    }
+
+
+def _extraer_dataset(
+    nombre: str,
+    url: str,
+    construir_consulta: Callable[[date, date, int], dict],
+    forzar: bool,
+) -> None:
+    if ya_existe(nombre, forzar):
+        return
+    filas = []
     for inicio, fin in ventanas(config.IDEAM_FECHA_INICIO, config.FECHA_FIN, config.IDEAM_DIAS_VENTANA):
-        offset = 0                                # empezar por la primera pagina
-        while True:                               # paginacion: repetir hasta la ultima pagina
-            # GET con los parametros SoQL; requests los pone en la URL despues de ?
-            # La respuesta es una lista de filas (cada fila es un diccionario).
-            lote = http_json("GET", config.IDEAM_URL, params=consulta_soql(inicio, fin, offset))
-            filas.extend(lote)                    # agrega las filas de esta pagina
-            if len(lote) < PAGINA:                # llegaron menos filas que el limite: era la ultima
-                break                             # break: sale del while
-            offset += PAGINA                      # pedir la siguiente pagina
-        log(f"   semana {inicio} a {fin}: {len(lote)} filas")
-    # pd.DataFrame(filas) convierte la lista de filas en una tabla de pandas,
-    # y guardar_bronce() la guarda en data/bronze/<NOMBRE>.parquet
-    guardar_bronce(pd.DataFrame(filas), NOMBRE, fuente="IDEAM", origen=config.IDEAM_URL)
+        offset = 0
+        filas_semana = 0
+        while True:
+            lote = http_json(
+                "GET",
+                url,
+                params=construir_consulta(inicio, fin, offset),
+            )
+            filas.extend(lote)
+            filas_semana += len(lote)
+            if len(lote) < PAGINA:
+                break
+            offset += PAGINA
+        log(f"   semana {inicio} a {fin}: {filas_semana} filas")
+    guardar_bronce(pd.DataFrame(filas), nombre, fuente="IDEAM", origen=url)
+
+
+def extraer(forzar: bool = False) -> None:
+    """Descarga precipitacion y temperatura diarias por estacion en Antioquia."""
+    log("IDEAM - datos abiertos (SoQL)")
+    _extraer_dataset(NOMBRE, config.IDEAM_URL, consulta_soql, forzar)
+    _extraer_dataset(
+        NOMBRE_TEMPERATURA,
+        config.IDEAM_TEMPERATURA_URL,
+        consulta_temperatura,
+        forzar,
+    )
 
 
 # ---------------------------------------------------------------------------
