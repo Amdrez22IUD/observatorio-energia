@@ -1,5 +1,5 @@
 """
-Fuente 3 - NOAA: indice ONI de El Nino (archivo de texto separado por espacios).
+Fuente 4 - NOAA: indice ONI de El Nino (archivo de texto separado por espacios).
   Columnas: SEAS (trimestre movil, ej. JAS), YR (anio), TOTAL (temp. del mar), ANOM (anomalia)
   ANOM >= +0.5  -> El Nino      ANOM <= -0.5 -> La Nina
 """

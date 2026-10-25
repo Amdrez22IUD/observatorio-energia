@@ -49,10 +49,21 @@ IDEAM_TEMPERATURA_SENSORES = (
     "TEMPERATURA DEL AIRE A 2 m",
 )
 
+# --- Fuente 3: NASA POWER (clima y radiacion solar) ------------------------
+NASA_POWER_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
+NASA_POWER_LATITUD = 6.2442      # punto de referencia: Medellin, Antioquia
+NASA_POWER_LONGITUD = -75.5812
+NASA_POWER_COMUNIDAD = "RE"      # parametros para energia renovable
+NASA_POWER_PARAMETROS = {
+    "T2M": "temperatura_2m_c",
+    "PRECTOTCORR": "precipitacion_corregida_mm_dia",
+    "ALLSKY_SFC_SW_DWN": "radiacion_solar_kwh_m2_dia",
+}
+
 # --- Fuente 3: NOAA, indice de El Nino (archivo de texto) ------------------
 NOAA_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 
-# --- Fuente 4: archivo interno de EnerAndes (Excel) ------------------------
+# --- Fuente 5: archivo interno de EnerAndes (Excel) ------------------------
 ENERANDES_EXCEL = DIR_INSUMOS / "ventas_enerandes_2023_2026.xlsx"
 
 # --- Comportamiento HTTP ---------------------------------------------------
