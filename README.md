@@ -1,15 +1,15 @@
-# Observatorio Energía y Clima – Equipo <nombre>
+# Observatorio Energía y Clima – Equipo <nombre></nombre>
 
 > Proyecto Integrado IV – Integración de Información · IU Digital de Antioquia · 2026-2
 
 ## 👥 Integrantes
 
-| Nombre | Usuario GitHub | Rol |
-|---|---|---|
-| | | Líder técnico / Data Engineer |
-| | | Data Quality Analyst |
-| | | Analytics Engineer |
-| | | BI Analyst / Storyteller |
+| Nombre                 | Usuario GitHub | Rol                             |
+| ---------------------- | -------------- | ------------------------------- |
+| Andres Cuenta Personal | amdrez22       | Líder técnico / Data Engineer |
+| Andres Mejia Pelaez    | amdrez22IUD    | Analytics Engineer              |
+|                        |                | Data Quality Analyst            |
+|                        |                | BI Analyst / Storyteller        |
 
 ## 🎯 Objetivo
 
@@ -17,12 +17,12 @@ Integrar datos del mercado eléctrico (XM), del clima (IDEAM y NOAA) y de ventas
 
 ## 📦 Fuentes de datos (capa bronce)
 
-| Fuente | Tipo | Archivo en `data/bronze/` |
-|---|---|---|
-| XM – API Sinergox | API REST (POST, JSON) | `xm_precio_bolsa`, `xm_demanda`, `xm_embalses` |
-| IDEAM – datos.gov.co | API Socrata (SoQL) | `ideam_precipitacion_diaria` |
-| NOAA – índice ONI | Archivo de texto | `noaa_oni` |
-| EnerAndes | Excel interno | `enerandes_ventas_2023` … `enerandes_ventas_2026` |
+| Fuente                | Tipo                  | Archivo en `data/bronze/`                            |
+| --------------------- | --------------------- | ------------------------------------------------------ |
+| XM – API Sinergox    | API REST (POST, JSON) | `xm_precio_bolsa`, `xm_demanda`, `xm_embalses`   |
+| IDEAM – datos.gov.co | API Socrata (SoQL)    | `ideam_precipitacion_diaria`                         |
+| NOAA – índice ONI   | Archivo de texto      | `noaa_oni`                                           |
+| EnerAndes             | Excel interno         | `enerandes_ventas_2023` … `enerandes_ventas_2026` |
 
 ## ⚙️ Cómo ejecutar
 
