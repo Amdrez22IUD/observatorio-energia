@@ -60,7 +60,7 @@ NASA_POWER_PARAMETROS = {
     "ALLSKY_SFC_SW_DWN": "radiacion_solar_kwh_m2_dia",
 }
 
-# --- Fuente 3: NOAA, indice de El Nino (archivo de texto) ------------------
+# --- Fuente 4: NOAA, indice de El Nino (archivo de texto) ------------------
 NOAA_ONI_URL = "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt"
 
 # --- Fuente 5: archivo interno de EnerAndes (Excel) ------------------------
