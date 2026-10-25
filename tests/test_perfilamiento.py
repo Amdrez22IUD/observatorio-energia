@@ -1,7 +1,7 @@
 from src import perfilamiento
 
 
-def test_perfilamiento_produce_siete_hallazgos():
+def test_perfilamiento_produce_diez_hallazgos():
     hallazgos = perfilamiento.generar_hallazgos()
 
     assert len(hallazgos) == 10
