@@ -5,6 +5,7 @@ select
     -- Llave a dim_mes: '2023-04' -> 202304 (igual que en dim_mes).
     -- v. indica que la columna viene de la tabla v (las ventas)
     cast(replace(v.periodo, '-', '') as integer)    as mes_id,
+    cast(replace(v.periodo || '-01', '-', '') as integer) as fecha_id,
     -- Llave a dim_municipio: el codigo DIVIPOLA
     v.divipola                                      as municipio_id,
     -- Llave a dim_segmento: el numero del segmento (viene de la tabla s)
@@ -17,6 +18,10 @@ select
     v.clientes
 -- De donde: el modelo stg_ventas, con el nombre corto v
 from {{ ref('stg_ventas') }} as v
+join {{ ref('dim_municipio') }} as m
+    on v.divipola = m.municipio_id
+join {{ ref('dim_fecha') }} as f
+    on cast(v.periodo || '-01' as date) = f.fecha
 -- join = unir con otra tabla: dim_segmento, con el nombre corto s...
 join {{ ref('dim_segmento') }} as s
     -- ...en las filas donde el segmento es el mismo. Asi cada venta recibe su segmento_id

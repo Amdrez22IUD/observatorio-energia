@@ -1,56 +1,59 @@
-# Pruebas de dbt sobre la capa oro. "dbt build" las ejecuta despues de crear cada tabla.
-# Es un archivo YAML: no se ejecuta; dbt lo lee para saber que probar en cada tabla.
-
-# La version del formato de este archivo (dbt pide 2)
 version: 2
 
-# La lista de modelos (tablas) y sus pruebas
 models:
-  # La tabla dim_mes
   - name: dim_mes
-    # Una descripcion corta de la tabla (sale en la documentacion de dbt)
-    description: "Un mes con ventas."
-    # Las columnas que se prueban
+    description: "Un mes con ventas. Grano: una fila por mes."
     columns:
-      # La columna mes_id (la llave)
       - name: mes_id
-        # unique: no se repite; not_null: nunca esta vacia
         data_tests: [unique, not_null]
 
-  # La tabla dim_municipio
-  - name: dim_municipio
-    description: "Un municipio de Antioquia con su codigo DIVIPOLA."
+  - name: dim_fecha
+    description: "Calendario diario con atributos de fecha y fase ENSO. Grano: un día."
     columns:
-      # La llave: no se repite y nunca esta vacia
+      - name: fecha_id
+        data_tests: [unique, not_null]
+
+  - name: dim_hora
+    description: "Horas del día. Grano: una fila por hora (1 a 24)."
+    columns:
+      - name: hora_id
+        data_tests: [unique, not_null]
+
+  - name: dim_municipio
+    description: "Municipios de ventas EnerAndes identificados por DIVIPOLA. Grano: un municipio."
+    columns:
       - name: municipio_id
         data_tests: [unique, not_null]
 
-  # La tabla dim_segmento
   - name: dim_segmento
-    description: "Un segmento de cliente."
+    description: "Segmentos de clientes EnerAndes. Grano: un segmento."
     columns:
-      # La llave: no se repite y nunca esta vacia
       - name: segmento_id
         data_tests: [unique, not_null]
 
-  # La tabla de hechos
-  - name: fact_ventas_mensual
-    description: "Ventas de energia por mes, municipio, segmento y tipo de compra."
+  - name: dim_recurso
+    description: "Plantas y recursos de XM; incluye claves históricas ausentes en el catálogo. Grano: un código de recurso."
     columns:
-      # La llave al mes
+      - name: codigo_recurso
+        data_tests: [unique, not_null]
+
+  - name: fact_ventas_mensual
+    description: "Ventas de energía 2023–2026. Grano: mes, municipio, segmento y tipo de compra."
+    columns:
       - name: mes_id
         data_tests:
-          # Nunca esta vacia
           - not_null
-          # relationships: cada mes_id del hecho debe existir en dim_mes
-          # (si no, seria una venta de un mes que no esta en la dimension)
           - relationships:
               arguments:
-                # La tabla con la que se compara
                 to: ref('dim_mes')
-                # La columna de esa tabla
                 field: mes_id
-      # La llave al municipio: nunca vacia y debe existir en dim_municipio
+      - name: fecha_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha_id
       - name: municipio_id
         data_tests:
           - not_null
@@ -58,7 +61,6 @@ models:
               arguments:
                 to: ref('dim_municipio')
                 field: municipio_id
-      # La llave al segmento: nunca vacia y debe existir en dim_segmento
       - name: segmento_id
         data_tests:
           - not_null
@@ -66,10 +68,51 @@ models:
               arguments:
                 to: ref('dim_segmento')
                 field: segmento_id
-      # El tipo de compra
       - name: tipo_compra
         data_tests:
-          # accepted_values: solo se aceptan los valores de esta lista
           - accepted_values:
               arguments:
                 values: ["Bolsa", "Contrato"]
+
+  - name: fact_mercado_horario
+    description: "Precio de bolsa y demanda de XM. Grano: fecha, hora y código de mercado."
+    columns:
+      - name: fecha_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha_id
+      - name: hora_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_hora')
+                field: hora_id
+
+  - name: fact_generacion_recurso
+    description: "Generación horaria de XM por planta. Grano: fecha, hora y código de recurso."
+    columns:
+      - name: fecha_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_fecha')
+                field: fecha_id
+      - name: hora_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_hora')
+                field: hora_id
+      - name: codigo_recurso
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_recurso')
+                field: codigo_recurso
