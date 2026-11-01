@@ -61,3 +61,105 @@ ESQUEMA_VENTAS = pa.DataFrameSchema(
     # strict=True: la tabla no puede traer columnas que no esten en este esquema
     strict=True,
 )
+
+
+def _esquema_xm_horario(nombre_codigo: str, nombre_valor: str) -> pa.DataFrameSchema:
+    return pa.DataFrameSchema(
+        {
+            "fecha": Column("datetime64[ns]"),
+            "hora": Column(int, Check.in_range(1, 24)),
+            nombre_codigo: Column(str, Check.str_length(min_value=1)),
+            nombre_valor: Column(float, Check.ge(0), nullable=True),
+        },
+        unique=["fecha", "hora", nombre_codigo],
+        strict=True,
+    )
+
+
+ESQUEMA_XM_PRECIO_BOLSA = _esquema_xm_horario("codigo", "precio_bolsa")
+ESQUEMA_XM_DEMANDA = _esquema_xm_horario("codigo", "demanda")
+ESQUEMA_XM_GENERACION = _esquema_xm_horario("codigo_recurso", "generacion")
+
+ESQUEMA_XM_EMBALSES = pa.DataFrameSchema(
+    {
+        "fecha": Column("datetime64[ns]"),
+        "id": Column(str, Check.str_length(min_value=1)),
+        "porcentaje_util": Column(float, Check.in_range(0, 1)),
+    },
+    unique=["fecha", "id"],
+    strict=True,
+)
+
+ESQUEMA_XM_APORTES = pa.DataFrameSchema(
+    {
+        "fecha": Column("datetime64[ns]"),
+        "id": Column(str, Check.str_length(min_value=1)),
+        "aportes_energia": Column(float, Check.ge(0)),
+    },
+    unique=["fecha", "id"],
+    strict=True,
+)
+
+ESQUEMA_XM_RECURSOS = pa.DataFrameSchema(
+    {
+        "codigo_recurso": Column(str, Check.str_length(min_value=1)),
+        "nombre_recurso": Column(str, Check.str_length(min_value=1)),
+        "tipo": Column(str, Check.str_length(min_value=1)),
+        "disponibilidad": Column(str),
+        "tipo_recurso": Column(str),
+        "codigo_empresa": Column(str),
+        "fuente_energia": Column(str),
+        "fecha_inicio_operacion": Column("datetime64[ns]", nullable=True),
+        "estado": Column(str),
+    },
+    unique=["codigo_recurso"],
+    strict=True,
+)
+
+
+def _esquema_ideam(columnas_medicion: dict[str, Column]) -> pa.DataFrameSchema:
+    return pa.DataFrameSchema(
+        {
+            "fecha": Column("datetime64[ns]"),
+            "codigo_estacion": Column(str, Check.str_length(min_value=1)),
+            "nombre_estacion": Column(str, Check.str_length(min_value=1)),
+            "municipio": Column(str, Check.str_length(min_value=1)),
+            "latitud": Column(float, Check.in_range(-90, 90)),
+            "longitud": Column(float, Check.in_range(-180, 180)),
+            **columnas_medicion,
+            "n_observaciones": Column(int, Check.gt(0)),
+        },
+        unique=["fecha", "codigo_estacion"],
+        strict=True,
+    )
+
+
+ESQUEMA_IDEAM_PRECIPITACION = _esquema_ideam({
+    "precipitacion_mm": Column(float, Check.ge(0)),
+})
+ESQUEMA_IDEAM_TEMPERATURA = _esquema_ideam({
+    "temperatura_promedio_c": Column(float, Check.in_range(-100, 100)),
+    "temperatura_minima_c": Column(float, Check.in_range(-100, 100)),
+    "temperatura_maxima_c": Column(float, Check.in_range(-100, 100)),
+})
+
+ESQUEMA_NOAA_ONI = pa.DataFrameSchema(
+    {
+        "fecha": Column("datetime64[ns]"),
+        "oni": Column(float, Check.in_range(-5, 5)),
+        "fase_enso": Column(str, Check.isin(["El Niño", "La Niña", "Neutral"])),
+    },
+    unique=["fecha"],
+    strict=True,
+)
+
+ESQUEMA_NASA_POWER = pa.DataFrameSchema(
+    {
+        "fecha": Column("datetime64[ns]"),
+        "temperatura_2m_c": Column(float, Check.in_range(-100, 100), nullable=True),
+        "precipitacion_corregida_mm_dia": Column(float, Check.ge(0), nullable=True),
+        "radiacion_solar_kwh_m2_dia": Column(float, Check.ge(0), nullable=True),
+    },
+    unique=["fecha"],
+    strict=True,
+)
