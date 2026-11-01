@@ -63,15 +63,19 @@ def _metricas(
     vacios: int = 0,
 ) -> list[dict[str, int | str]]:
     return [
-        {"fuente": fuente, "problema": "Filas de entrada", "antes": total_entrada,
+        {"fuente": fuente, "problema": "Registros en la fuente", "regla aplicada":
+         "Clasificar las filas entre plata y cuarentena", "antes": total_entrada,
          "despues": total_salida + total_cuarentena},
-        {"fuente": fuente, "problema": "Valores vacíos no imputables", "antes": vacios,
-         "despues": vacios},
+        {"fuente": fuente, "problema": "Valores vacíos no imputables", "regla aplicada":
+         "Conservarlos como nulos; no inventar valores", "antes": vacios, "despues": vacios},
         {"fuente": fuente, "problema": "Filas duplicadas o conflictos de llave",
-         "antes": duplicados, "despues": 0},
+         "regla aplicada": "Conservar una fila o separar el conflicto", "antes": duplicados,
+         "despues": 0},
         {"fuente": fuente, "problema": "Filas inválidas enviadas a cuarentena",
-         "antes": invalidos, "despues": total_cuarentena},
-        {"fuente": fuente, "problema": "Filas válidas", "antes": total_entrada,
+         "regla aplicada": "Preservar la fila con el motivo de rechazo", "antes": invalidos,
+         "despues": total_cuarentena},
+        {"fuente": fuente, "problema": "Filas válidas", "regla aplicada":
+         "Validar el esquema Pandera antes de guardar", "antes": total_entrada,
          "despues": total_salida},
     ]
 
@@ -143,7 +147,7 @@ def limpiar_xm_horario(
     limpias, cuarentena = _separar_cuarentena(salida, reglas)
     metricas = _metricas(
         "XM horario",
-        len(largo),
+        len(fuente),
         len(limpias),
         len(cuarentena),
         duplicados=int(duplicadas.sum()),
@@ -462,6 +466,8 @@ def _guardar_tabla(
 ) -> list[dict[str, int | str]]:
     limpias, cuarentena, metricas = limpiar(bronce, *argumentos)
     esquema.validate(limpias, lazy=True)
+    for metrica in metricas:
+        metrica["fuente"] = nombre
     ruta = config.DIR_SILVER / f"{nombre}.parquet"
     limpias.to_parquet(ruta, index=False)
     ruta_cuarentena = config.DIR_SILVER / f"{nombre}_cuarentena.parquet"
@@ -476,7 +482,7 @@ def _guardar_tabla(
     return metricas
 
 
-def main() -> None:
+def main() -> list[dict[str, int | str]]:
     config.DIR_SILVER.mkdir(parents=True, exist_ok=True)
     trabajos = [
         ("xm_precio_bolsa_horario", "xm_precio_bolsa", limpiar_xm_horario,
@@ -515,6 +521,7 @@ def main() -> None:
             f"{metrica['fuente']:<22}{metrica['problema']:<42}"
             f"{metrica['antes']:>10}{metrica['despues']:>10}"
         )
+    return metricas_totales
 
 
 if __name__ == "__main__":
