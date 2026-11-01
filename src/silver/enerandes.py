@@ -442,7 +442,7 @@ def _main_2023() -> None:
     log("Reporte en docs/reporte_calidad.md")
 
 
-def main() -> None:
+def main() -> list[dict]:
     tablas_limpias = []
     tablas_cuarentena = []
     metricas_totales = []
@@ -454,6 +454,16 @@ def main() -> None:
         log(f"{anio}: validación Pandera OK ({len(limpias):,} filas)")
         tablas_limpias.append(limpias)
         tablas_cuarentena.append(cuarentena)
+        metricas.append({
+            "anio": anio,
+            "fuente": "EnerAndes",
+            "problema": "Filas de bronce recibidas",
+            "regla aplicada": "Detectar encabezado, preámbulo y filas de datos",
+            "antes": len(bronce),
+            "despues": len(bronce),
+        })
+        for metrica in metricas:
+            metrica["fuente"] = "EnerAndes"
         metricas_totales.extend(metricas)
         filas_bronce += len(bronce)
 
@@ -473,6 +483,7 @@ def main() -> None:
         )
     log(f"Plata: {len(limpias):,} filas limpias y {len(cuarentena)} en cuarentena")
     log("Reporte en docs/reporte_calidad.md")
+    return metricas_totales
 
 
 # __name__ vale "__main__" solo cuando se ejecuta este archivo
