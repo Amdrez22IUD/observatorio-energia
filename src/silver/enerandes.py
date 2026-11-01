@@ -1,8 +1,8 @@
 """
-Capa PLATA: limpia la hoja 2023 del Excel de ventas de EnerAndes.
+Capa PLATA: limpia las hojas 2023–2026 del Excel de ventas de EnerAndes.
 
-Lee data/bronze/enerandes_ventas_2023.parquet (tal cual llego), aplica las
-reglas de limpieza una por una y MIDE cada problema antes y despues.
+Lee los cuatro Parquet de bronce, aplica las reglas comunes y MIDE cada
+problema antes y despues.
 Luego valida el resultado con pandera (src/quality/esquemas.py) y guarda:
   - data/silver/enerandes_ventas.parquet       las filas limpias
   - data/silver/enerandes_cuarentena.parquet   las filas que no se pueden usar
@@ -16,7 +16,9 @@ Uso:
 # ---------------------------------------------------------------------------
 # IMPORTS
 # ---------------------------------------------------------------------------
+import re
 import unicodedata      # unicodedata: separa una letra de su tilde (para quitar tildes)
+from datetime import datetime
 
 import pandas as pd     # pandas: tablas
 
@@ -25,17 +27,6 @@ from src.quality.esquemas import ESQUEMA_VENTAS  # las reglas que debe cumplir l
 from src.utils import log                        # mensajes con hora
 
 LINAJE = ["_fuente", "_origen", "_extraido_en"]  # columnas que agrego guardar_bronce()
-
-# Encabezados de la hoja 2023 -> nombres estandar de la capa plata
-COLUMNAS_2023 = {
-    "Fecha": "periodo",
-    "Municipio": "municipio",
-    "Segmento": "segmento",
-    "Tipo_Compra": "tipo_compra",
-    "Energia_kWh": "energia_kwh",
-    "Valor_COP": "valor_cop",
-    "Clientes": "clientes",
-}
 
 # Municipio (escrito sin tildes y en minuscula) -> (codigo DIVIPOLA, nombre oficial)
 MUNICIPIOS = {
@@ -97,198 +88,299 @@ def clave_municipio(texto) -> str | None:
     return ALIAS_MUNICIPIO.get(clave, clave)
 
 
-# ---------------------------------------------------------------------------
-# LIMPIEZA: las 9 reglas, en orden
-# ---------------------------------------------------------------------------
-def limpiar(bronce: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, list[dict]]:
-    """Aplica las reglas en orden. Devuelve (limpias, cuarentena, metricas)."""
-    # metricas es una lista vacia. Cada regla le agrega una fila del reporte de calidad
-    metricas = []
+COLUMNAS_CANONICAS = {
+    "fecha": "periodo",
+    "periodo": "periodo",
+    "mes": "periodo",
+    "fechacorte": "periodo",
+    "municipio": "municipio",
+    "ciudad": "municipio",
+    "segmento": "segmento",
+    "segmentocliente": "segmento",
+    "tipocliente": "segmento",
+    "tipocompra": "tipo_compra",
+    "modalidad": "tipo_compra",
+    "compra": "tipo_compra",
+    "energia": "energia",
+    "energiakwh": "energia",
+    "consumokwh": "energia",
+    "kwh": "energia",
+    "unidad": "unidad",
+    "unidades": "unidad",
+    "valorcop": "valor_cop",
+    "valor": "valor_cop",
+    "facturado": "valor_cop",
+    "totalfacturadocop": "valor_cop",
+    "clientes": "clientes",
+    "numclientes": "clientes",
+    "usuarios": "clientes",
+    "clientesactivos": "clientes",
+}
+COLUMNAS_REQUERIDAS = {
+    "periodo", "municipio", "segmento", "tipo_compra", "energia", "valor_cop", "clientes"
+}
+MESES = {
+    "ene": 1, "enero": 1, "jan": 1, "january": 1,
+    "feb": 2, "febrero": 2, "february": 2,
+    "mar": 3, "marzo": 3, "march": 3,
+    "abr": 4, "abril": 4, "apr": 4, "april": 4,
+    "may": 5, "mayo": 5,
+    "jun": 6, "junio": 6, "june": 6,
+    "jul": 7, "julio": 7, "july": 7,
+    "ago": 8, "agosto": 8, "aug": 8, "august": 8,
+    "sep": 9, "set": 9, "sept": 9, "septiembre": 9, "setiembre": 9, "september": 9,
+    "oct": 10, "octubre": 10, "october": 10,
+    "nov": 11, "noviembre": 11, "november": 11,
+    "dic": 12, "diciembre": 12, "dec": 12, "december": 12,
+}
 
-    # medir() es una funcion dentro de la funcion. Ejemplo:
-    #   medir("Filas duplicadas", "Dejar una sola copia", 32, 0)
-    # agrega a metricas: {"problema": "Filas duplicadas", "regla aplicada": "Dejar una
-    # sola copia", "antes": 32, "despues": 0}
-    def medir(problema: str, regla: str, antes: int, despues: int) -> None:
-        metricas.append({"problema": problema, "regla aplicada": regla,
-                         "antes": antes, "despues": despues})
 
-    # La tabla de bronce tiene 10 columnas: col_0 ... col_6 y las 3 de linaje
-    # (_fuente, _origen, _extraido_en). .drop(columns=LINAJE) quita esas 3.
-    # errors="ignore": si alguna de las 3 no existe, no da error.
-    # df es la tabla con la que se trabaja de aqui en adelante
-    df = bronce.drop(columns=LINAJE, errors="ignore")
+def _clave_encabezado(valor: object) -> str:
+    if pd.isna(valor):
+        return ""
+    return re.sub(r"[^a-z0-9]", "", sin_tildes(str(valor)))
 
-    # ------------------------------------------------------------------
-    # Regla 1. La primera fila es el encabezado
-    # ------------------------------------------------------------------
-    # Asi esta df ahora:
-    #        col_0      col_1      col_2        col_3  ...
-    #   0    Fecha  Municipio   Segmento  Tipo_Compra  ...   <- el encabezado
-    #   1  2023-04 Copacabana Industrial        Bolsa  ...   <- la primera venta
-    # df.iloc[0] es la fila de la posicion 0; .tolist() la vuelve una lista:
-    #   encabezado = ['Fecha', 'Municipio', 'Segmento', 'Tipo_Compra', ...]
-    encabezado = df.iloc[0].tolist()
-    # df.iloc[1:] son las filas desde la posicion 1 hasta el final: todas menos el
-    # encabezado. .copy() hace una copia, para trabajar sobre ella sin danar bronce
-    df = df.iloc[1:].copy()
-    # Para cada nombre del encabezado busca su nombre estandar en COLUMNAS_2023:
-    #   'Fecha' -> 'periodo', 'Municipio' -> 'municipio', 'Segmento' -> 'segmento' ...
-    # y pone esa lista como los nombres de las columnas. Asi queda df:
-    #        periodo   municipio    segmento tipo_compra  ...
-    #   1    2023-04  Copacabana  Industrial       Bolsa  ...
-    df.columns = [COLUMNAS_2023[nombre] for nombre in encabezado]
-    # Habia 1 encabezado guardado como fila; despues hay 0
-    medir("Encabezado guardado como una fila", "Usarlo como nombres de columna", 1, 0)
 
-    # ------------------------------------------------------------------
-    # Regla 2. La fila TOTAL al final de la hoja: no es una venta
-    # ------------------------------------------------------------------
-    # df["periodo"] es la columna periodo: '2023-04', '2023-09', ..., 'TOTAL'
-    # .str.upper() la pasa a mayuscula y .str.strip() le quita los espacios
-    # (por si dijera ' total '). == "TOTAL" compara cada fila con 'TOTAL'.
-    # El resultado es una columna de True/False, una respuesta por fila:
-    #   '2023-04' -> False,  '2023-09' -> False,  ...,  'TOTAL' -> True
-    es_total = df["periodo"].str.upper().str.strip() == "TOTAL"
-    # .sum() suma la columna: cada True vale 1 y cada False vale 0.
-    # Aqui da 1, porque hay 1 fila TOTAL. int() lo vuelve un numero entero normal
-    medir("Filas de totales", "Eliminarlas", int(es_total.sum()), 0)
-    # ~ invierte cada respuesta: True -> False y False -> True.
-    # ~es_total es True en las filas que NO son total.
-    # df[ columna de True/False ] devuelve solo las filas que dicen True.
-    # Resultado: df ya no tiene la fila TOTAL
-    df = df[~es_total]
+def _periodo_mensual(valor: object) -> str | None:
+    if pd.isna(valor):
+        return None
+    texto = str(valor).strip().lower()
+    if texto in {"", "total"}:
+        return None
+    if re.fullmatch(r"\d{4}-\d{1,2}", texto):
+        anio, mes = map(int, texto.split("-"))
+    elif re.fullmatch(r"\d{1,2}/\d{4}", texto):
+        mes, anio = map(int, texto.split("/"))
+    elif re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", texto):
+        try:
+            fecha = datetime.strptime(texto, "%d/%m/%Y")
+        except ValueError:
+            return None
+        anio, mes = fecha.year, fecha.month
+    elif re.fullmatch(r"[a-záéíóúñ]+-\d{2}", texto):
+        nombre_mes, anio_corto = texto.split("-")
+        mes = MESES.get(sin_tildes(nombre_mes))
+        anio = 2000 + int(anio_corto)
+        if mes is None:
+            return None
+    else:
+        return None
+    if mes < 1 or mes > 12:
+        return None
+    return f"{anio:04d}-{mes:02d}"
 
-    # ------------------------------------------------------------------
-    # Regla 3. Filas repetidas exactamente iguales
-    # ------------------------------------------------------------------
-    # .duplicated() revisa fila por fila: True si la fila es igual a otra que ya
-    # aparecio antes (la primera vez que aparece queda en False).
-    # .sum() cuenta los True: aqui da 32 copias. antes guarda ese 32
-    antes = int(df.duplicated().sum())
-    # .drop_duplicates() borra las 32 copias y deja la primera de cada una
-    df = df.drop_duplicates()
-    # Vuelve a contar las copias: ahora da 0
-    medir("Filas duplicadas", "Dejar una sola copia", antes, int(df.duplicated().sum()))
 
-    # ------------------------------------------------------------------
-    # Regla 4. Segmento escrito de varias formas o vacio
-    # ------------------------------------------------------------------
-    # df["segmento"] es la columna segmento. Tiene estos valores distintos:
-    #   'Industrial', 'Comercial', 'Residencial', 'RESID.', 'Comercial ', 'IND'
-    #   (y algunas celdas vacias)
-    # .nunique() cuenta cuantos valores DISTINTOS hay, sin contar los vacios: 6.
-    # antes guarda ese 6
-    antes = df["segmento"].nunique()
-    # .map(...) recorre la columna y cambia cada celda por lo que diga la funcion.
-    # lambda s: ... es esa funcion, escrita en una linea; s es el valor de la celda:
-    #   si s no esta vacio (pd.notna(s)):
-    #       sin_tildes(s) lo limpia:         'RESID.' -> 'resid.'
-    #       SEGMENTOS.get(...) lo busca:     'resid.' -> 'Residencial'
-    #   si s esta vacio: devuelve None (sigue vacio)
-    # Ejemplos:  'RESID.' -> 'Residencial'   'IND' -> 'Industrial'
-    #            'Comercial ' -> 'Comercial'  (vacio) -> None
-    df["segmento"] = df["segmento"].map(lambda s: SEGMENTOS.get(sin_tildes(s)) if pd.notna(s) else None)
-    # .isna() da True en cada celda vacia; .sum() las cuenta: 14
-    vacios = int(df["segmento"].isna().sum())
-    # .fillna("No informado") escribe 'No informado' en cada celda vacia
-    df["segmento"] = df["segmento"].fillna("No informado")
-    # Valores distintos despues: Residencial, Comercial, Industrial y No informado = 4.
-    # El - 1 descuenta 'No informado', que no es un segmento real: queda 3
-    medir("Segmento escrito de varias formas", "Unificar a 3 valores", antes, df["segmento"].nunique() - 1)
-    # Habia 14 vacios; despues, 0
-    medir("Segmento vacio", "Marcarlo como 'No informado'", vacios, 0)
+def _normalizar_numero(serie: pd.Series) -> pd.Series:
+    texto = serie.astype("string").str.strip().str.replace(",", "", regex=False)
+    texto = texto.mask(texto.eq(""))
+    return pd.to_numeric(texto, errors="coerce")
 
-    # ------------------------------------------------------------------
-    # Regla 5. Tipo de compra escrito de varias formas
-    # ------------------------------------------------------------------
-    # Valores distintos de tipo_compra: 'Bolsa', 'Contrato', 'CONTRATOS', 'bolsa'.
-    # .nunique() da 4; antes guarda ese 4
-    antes = df["tipo_compra"].nunique()
-    # A cada celda t: sin_tildes la limpia y TIPOS_COMPRA.get la cambia:
-    #   'CONTRATOS' -> 'contratos' -> 'Contrato'
-    #   'bolsa'     -> 'bolsa'     -> 'Bolsa'
-    df["tipo_compra"] = df["tipo_compra"].map(lambda t: TIPOS_COMPRA.get(sin_tildes(t)))
-    # Valores distintos despues: 'Bolsa' y 'Contrato' = 2
-    medir("Tipo de compra escrito de varias formas", "Unificar a Bolsa y Contrato",
-          antes, df["tipo_compra"].nunique())
 
-    # ------------------------------------------------------------------
-    # Regla 6. Municipio escrito de varias formas: se cambia por su codigo DIVIPOLA
-    # ------------------------------------------------------------------
-    # La columna municipio tiene 31 formas distintas de escribir 15 municipios:
-    #   'Medellin', 'medellin', 'Medellín', 'Medellín ', 'Medellín D.E.',
-    #   'Bello', 'BELLO', 'Bello ', 'Rio Negro', 'Rionegro', 'Rionegro (Ant)', ...
-    # .nunique() las cuenta: 31. antes guarda ese 31
-    antes = df["municipio"].nunique()
-    # .map(clave_municipio) le aplica a cada celda la funcion clave_municipio,
-    # que deja una sola forma por municipio:
-    #   'Medellín D.E.' -> 'medellin'    'BELLO' -> 'bello'    'Rio Negro' -> 'rionegro'
-    # claves es una columna nueva con esas formas
-    claves = df["municipio"].map(clave_municipio)
-    # Con cada clave c busca en MUNICIPIOS, que guarda (codigo, nombre oficial):
-    #   MUNICIPIOS['rionegro'] = ('05615', 'Rionegro')
-    # [0] toma el primero, el codigo: '05615'.
-    # df["divipola"] = ... crea la columna divipola con esos codigos
-    df["divipola"] = claves.map(lambda c: MUNICIPIOS[c][0])
-    # [1] toma el segundo, el nombre oficial: 'Rionegro'.
-    # Se escribe encima de la columna municipio
-    df["municipio"] = claves.map(lambda c: MUNICIPIOS[c][1])
-    # Valores distintos despues: los 15 municipios reales
-    medir("Municipio escrito de varias formas", "Unificar con el codigo DIVIPOLA",
-          antes, df["municipio"].nunique())
+def limpiar(bronce: pd.DataFrame, anio: int = 2023) -> tuple[pd.DataFrame, pd.DataFrame, list[dict]]:
+    """Normaliza una hoja de ventas mensual y separa filas irrecuperables."""
+    fuente = bronce.drop(columns=LINAJE, errors="ignore")
+    metricas: list[dict] = []
 
-    # ------------------------------------------------------------------
-    # Regla 7. Los numeros llegaron como texto: se convierten a numero
-    # ------------------------------------------------------------------
-    # for col in [...] repite lo de adentro 3 veces, una con cada columna:
-    # primero col = "energia_kwh", luego "valor_cop" y luego "clientes"
-    for col in ["energia_kwh", "valor_cop", "clientes"]:
-        # pd.to_numeric convierte el texto en numero: '98240' -> 98240.0
-        # errors="coerce": si una celda no es un numero, queda vacia (NaN)
-        # en vez de detener el programa con un error
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-    # .astype(int) quita los decimales: 2.0 -> 2. Los clientes son personas
-    df["clientes"] = df["clientes"].astype(int)
+    def medir(problema: str, regla: str, antes: int | float, despues: int | float) -> None:
+        metricas.append({
+            "anio": anio,
+            "problema": problema,
+            "regla aplicada": regla,
+            "antes": antes,
+            "despues": despues,
+        })
 
-    # ------------------------------------------------------------------
-    # Regla 8. Energia vacia o negativa: no se puede adivinar -> cuarentena
-    # ------------------------------------------------------------------
-    # df["energia_kwh"].isna()  -> True si la energia esta vacia
-    # (df["energia_kwh"] < 0)   -> True si la energia es negativa
-    # |                         -> significa "o": True si pasa cualquiera de las dos
-    # malas es una columna de True/False. Ejemplo:
-    #   98240 -> False    NaN (vacia) -> True    -594733 -> True    74785 -> False
-    malas = df["energia_kwh"].isna() | (df["energia_kwh"] < 0)
-    # df[malas] devuelve solo las filas que dicen True: las 16 malas.
-    # Se guardan aparte en cuarentena: no se borran
-    cuarentena = df[malas]
-    # ~malas invierte: True en las filas buenas. df[~malas] devuelve solo esas,
-    # y se guardan otra vez en df: desde aqui df ya no tiene las 16 malas
-    df = df[~malas]
-    # .sum() cuenta los True de malas: 16
-    medir("Energia vacia o negativa", "Pasar la fila a cuarentena", int(malas.sum()), 0)
+    fila_encabezado = None
+    mapeo: dict[str, int] = {}
+    for posicion_fila in range(len(fuente)):
+        fila = fuente.iloc[posicion_fila]
+        candidatos: dict[str, int] = {}
+        for posicion, valor in enumerate(fila.tolist()):
+            canonica = COLUMNAS_CANONICAS.get(_clave_encabezado(valor))
+            if canonica and canonica not in candidatos:
+                candidatos[canonica] = posicion
+        if COLUMNAS_REQUERIDAS.issubset(candidatos):
+            fila_encabezado = posicion_fila
+            mapeo = candidatos
+            break
+    if fila_encabezado is None:
+        raise ValueError(f"No se encontró un encabezado de ventas válido para {anio}.")
 
-    # ------------------------------------------------------------------
-    # Regla 9. Valor facturado vacio: se deja vacio (no se inventa un valor)
-    # ------------------------------------------------------------------
-    # .isna() da True en cada valor vacio y .sum() los cuenta: 7.
-    # No se corrige nada: solo se cuenta para que quede en el reporte
-    vacios = int(df["valor_cop"].isna().sum())
-    # Antes 7, despues 7: no hay como saber el valor real
-    medir("Valor facturado vacio", "Dejarlo vacio y documentarlo", vacios, vacios)
+    columnas = ["periodo", "municipio", "segmento", "tipo_compra", "energia", "valor_cop", "clientes"]
+    if "unidad" in mapeo:
+        columnas.append("unidad")
+    datos = pd.DataFrame({
+        columna: fuente.iloc[fila_encabezado + 1:, mapeo[columna]].to_numpy()
+        for columna in columnas
+    })
+    medir("Títulos y notas antes del encabezado", "Localizar encabezado y excluir preámbulo",
+          int(fila_encabezado), 0)
+    medir("Encabezado guardado como fila", "Usarlo como nombres de columna", 1, 0)
 
-    # ------------------------------------------------------------------
-    # Resultado
-    # ------------------------------------------------------------------
-    # El orden en que quedan las columnas en la capa plata
-    orden = ["periodo", "divipola", "municipio", "segmento", "tipo_compra",
-             "energia_kwh", "valor_cop", "clientes"]
-    # df[orden] pone las columnas en ese orden.
-    # .reset_index(drop=True) vuelve a numerar las filas 0, 1, 2, ... sin huecos
-    # (quedaron huecos donde estaban las filas borradas).
-    # return devuelve 3 cosas: la tabla limpia, la cuarentena y la lista de metricas
-    return df[orden].reset_index(drop=True), cuarentena, metricas
+    total = datos["periodo"].astype("string").str.strip().str.upper().eq("TOTAL").fillna(False)
+    medir("Filas de totales", "Excluir filas TOTAL", int(total.sum()), 0)
+    datos = datos.loc[~total].copy()
+
+    vacias = datos.isna().all(axis=1) | datos.astype("string").apply(
+        lambda columna: columna.str.strip().eq("").fillna(True)
+    ).all(axis=1)
+    medir("Filas vacías", "Excluir filas sin ningún dato", int(vacias.sum()), 0)
+    datos = datos.loc[~vacias].copy()
+
+    duplicadas = datos.duplicated(keep="first")
+    medir("Filas duplicadas exactas", "Conservar una sola copia",
+          int(duplicadas.sum()), 0)
+    datos = datos.loc[~duplicadas].copy()
+
+    formatos = {
+        "AAAA-MM": datos["periodo"].astype("string").str.fullmatch(r"\d{4}-\d{1,2}", na=False),
+        "mes-AAAA corto": datos["periodo"].astype("string").str.fullmatch(r"[A-Za-záéíóúñÁÉÍÓÚÑ]+-\d{2}", na=False),
+        "MM/AAAA": datos["periodo"].astype("string").str.fullmatch(r"\d{1,2}/\d{4}", na=False),
+        "DD/MM/AAAA": datos["periodo"].astype("string").str.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", na=False),
+    }
+    datos["periodo"] = datos["periodo"].map(_periodo_mensual)
+    medir("Formatos de fecha", "Normalizar fechas a AAAA-MM",
+          int(sum(mask.sum() for mask in formatos.values())),
+          int(datos["periodo"].notna().sum()))
+
+    municipio_original = datos["municipio"].copy()
+    claves_municipio = municipio_original.map(clave_municipio)
+    municipio_valido = claves_municipio.isin(MUNICIPIOS)
+    datos["divipola"] = claves_municipio.map(
+        lambda clave: MUNICIPIOS[clave][0] if clave in MUNICIPIOS else None
+    )
+    datos["municipio"] = claves_municipio.map(
+        lambda clave: MUNICIPIOS[clave][1] if clave in MUNICIPIOS else None
+    )
+    medir("Municipios con alias, tildes o errores", "Normalizar a nombre oficial y DIVIPOLA",
+          int(municipio_original.nunique(dropna=True)),
+          int(datos["municipio"].nunique(dropna=True)))
+
+    segmento_original = datos["segmento"].copy()
+    segmento_vacio = segmento_original.isna() | segmento_original.astype("string").str.strip().eq("")
+    segmento_normalizado = segmento_original.map(
+        lambda valor: SEGMENTOS.get(sin_tildes(str(valor))) if pd.notna(valor) else None
+    )
+    segmento_desconocido = segmento_normalizado.isna() & ~segmento_vacio
+    datos["segmento"] = segmento_normalizado
+    datos.loc[segmento_vacio, "segmento"] = "No informado"
+    medir("Segmentos no estandarizados", "Unificar categorías y marcar vacíos",
+          int(segmento_original.nunique(dropna=True)),
+          int(datos["segmento"].nunique(dropna=True)))
+    medir("Segmentos vacíos", "Marcar como 'No informado'",
+          int(segmento_vacio.sum()), 0)
+
+    tipo_original = datos["tipo_compra"].copy()
+    datos["tipo_compra"] = datos["tipo_compra"].map(
+        lambda valor: TIPOS_COMPRA.get(sin_tildes(str(valor))) if pd.notna(valor) else None
+    )
+    medir("Tipos de compra no estandarizados", "Unificar a Bolsa o Contrato",
+          int(tipo_original.nunique(dropna=True)),
+          int(datos["tipo_compra"].nunique(dropna=True)))
+
+    energia_original = datos["energia"].copy()
+    energia = _normalizar_numero(energia_original)
+    unidad = (
+        datos["unidad"].astype("string").str.strip().str.upper()
+        if "unidad" in datos
+        else pd.Series("KWH", index=datos.index)
+    )
+    energia_mwh = unidad.eq("MWH").fillna(False)
+    energia_kwh = unidad.eq("KWH").fillna(False)
+    unidad_valida = energia_mwh | energia_kwh
+    energia = energia.where(~energia_mwh, energia * 1000)
+    datos["energia_kwh"] = energia
+    medir("Energía expresada en MWh", "Convertir MWh a kWh (× 1.000)",
+          int(energia_mwh.sum()), int(energia_mwh.sum()))
+
+    valor_fuente = datos["valor_cop"].copy()
+    clientes_fuente = datos["clientes"].copy()
+    datos["valor_cop"] = _normalizar_numero(valor_fuente)
+    datos["clientes"] = _normalizar_numero(clientes_fuente)
+    motivos: dict[object, list[str]] = {indice: [] for indice in datos.index}
+
+    def agregar_motivo(mascara: pd.Series, motivo: str) -> int:
+        indices = datos.index[mascara.fillna(False)]
+        for indice in indices:
+            motivos[indice].append(motivo)
+        return len(indices)
+
+    fecha_invalida = datos["periodo"].isna()
+    agregar_motivo(fecha_invalida, "fecha ausente o formato mensual no reconocido")
+    municipio_invalido = ~municipio_valido
+    agregar_motivo(municipio_invalido, "municipio vacío o sin equivalencia DIVIPOLA")
+    segmento_invalido = segmento_desconocido
+    agregar_motivo(segmento_invalido, "segmento no reconocido")
+    tipo_invalido = datos["tipo_compra"].isna()
+    agregar_motivo(tipo_invalido, "tipo de compra vacío o no reconocido")
+    unidad_invalida = ~unidad_valida
+    agregar_motivo(unidad_invalida, "unidad de energía vacía o no reconocida")
+
+    energia_vacia = energia_original.isna() | energia_original.astype("string").str.strip().eq("")
+    energia_no_numerica = ~energia_vacia & energia.isna()
+    energia_negativa = energia.lt(0)
+    agregar_motivo(energia_vacia, "energía vacía")
+    agregar_motivo(energia_no_numerica, "energía no numérica")
+    agregar_motivo(energia_negativa, "energía negativa")
+    medir("Energía vacía, inválida o negativa", "Enviar fila a cuarentena",
+          int((energia_vacia | energia_no_numerica | energia_negativa).sum()), 0)
+
+    valor_vacio = valor_fuente.isna() | valor_fuente.astype("string").str.strip().eq("")
+    valor_no_numerico = ~valor_vacio & datos["valor_cop"].isna()
+    valor_negativo = datos["valor_cop"].lt(0)
+    agregar_motivo(valor_no_numerico, "valor facturado no numérico")
+    agregar_motivo(valor_negativo, "valor facturado negativo")
+    medir("Valores COP vacíos", "Conservar como nulo sin inventar el importe",
+          int(valor_vacio.sum()), int(valor_vacio.sum()))
+    clientes_vacios = clientes_fuente.isna() | clientes_fuente.astype("string").str.strip().eq("")
+    clientes_no_numericos = ~clientes_vacios & datos["clientes"].isna()
+    clientes_invalidos = datos["clientes"].isna() | datos["clientes"].lt(0) | (
+        datos["clientes"].notna() & datos["clientes"].mod(1).ne(0)
+    )
+    agregar_motivo(clientes_no_numericos, "número de clientes no numérico")
+    agregar_motivo(clientes_invalidos, "número de clientes ausente, negativo o no entero")
+
+    salida = datos[[
+        "periodo", "divipola", "municipio", "segmento", "tipo_compra",
+        "energia_kwh", "valor_cop", "clientes",
+    ]].copy()
+    salida["energia_kwh"] = salida["energia_kwh"].astype("float64")
+    salida["valor_cop"] = salida["valor_cop"].astype("float64")
+    salida["clientes"] = salida["clientes"].astype("Int64")
+    validas = pd.Series(
+        [not motivos[indice] for indice in datos.index],
+        index=datos.index,
+    )
+    duplicadas_clave = salida.loc[validas].duplicated(
+        subset=["periodo", "divipola", "segmento", "tipo_compra"],
+        keep="first",
+    )
+    indices_duplicados = duplicadas_clave[duplicadas_clave].index
+    for indice in indices_duplicados:
+        motivos[indice].append("llave mensual duplicada con valores distintos")
+    medir("Llaves mensuales duplicadas", "Conservar primera fila y enviar conflicto a cuarentena",
+          len(indices_duplicados), 0)
+
+    cuarentena_mask = pd.Series(
+        [bool(motivos[indice]) for indice in datos.index],
+        index=datos.index,
+    )
+    cuarentena = salida.loc[cuarentena_mask].copy()
+    cuarentena["motivo_cuarentena"] = [
+        "; ".join(motivos[indice]) for indice in cuarentena.index
+    ]
+    limpias = salida.loc[~cuarentena_mask].copy()
+    limpias["clientes"] = limpias["clientes"].astype("int64")
+    medir("Filas enviadas a cuarentena", "Conservar todas las filas no corregibles con motivo",
+          int(cuarentena_mask.sum()), int(len(cuarentena)))
+    medir("Filas limpias", "Validar esquema de ventas",
+          len(datos), len(limpias))
+    return limpias.reset_index(drop=True), cuarentena.reset_index(drop=True), metricas
+
+
+def limpiar_anio(bronce: pd.DataFrame, anio: int) -> tuple[pd.DataFrame, pd.DataFrame, list[dict]]:
+    """Limpia una de las hojas anuales con las reglas comunes de ventas."""
+    return limpiar(bronce, anio=anio)
 
 
 # ---------------------------------------------------------------------------
@@ -296,34 +388,27 @@ def limpiar(bronce: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, list[dict
 # ---------------------------------------------------------------------------
 def escribir_reporte(metricas: list[dict], filas_bronce: int, filas_plata: int, filas_cuarentena: int) -> None:
     """Escribe docs/reporte_calidad.md con la tabla de metricas antes y despues."""
-    # Lista con las primeras lineas del reporte: el titulo, el conteo de filas
-    # y el encabezado de la tabla.
-    # f"...{filas_bronce:,}" mete el numero dentro del texto; :, le pone separador de miles
     lineas = [
-        "# Reporte de calidad: ventas de EnerAndes (hoja 2023)\n",
+        "# Reporte de calidad: ventas de EnerAndes (2023–2026)\n",
         f"- Filas en bronce: {filas_bronce:,}",
         f"- Filas en plata: {filas_plata:,}",
         f"- Filas en cuarentena: {filas_cuarentena:,}\n",
-        "| # | Problema | Regla aplicada | Antes | Despues |",
-        "|---|---|---|---|---|",
+        "| Año | Problema | Regla aplicada | Antes | Después |",
+        "|---:|---|---|---:|---:|",
     ]
-    # Recorre las metricas; enumerate(..., start=1) da tambien su numero: 1, 2, 3...
-    # n es el numero y m es el diccionario de la metrica
-    for n, m in enumerate(metricas, start=1):
-        # Agrega una fila de la tabla con los datos de esa regla
-        lineas.append(f"| {n} | {m['problema']} | {m['regla aplicada']} | {m['antes']} | {m['despues']} |")
-    # .mkdir crea la carpeta docs/; parents=True crea tambien las carpetas de arriba
-    # si faltan; exist_ok=True no da error si ya existe
+    for metrica in metricas:
+        lineas.append(
+            f"| {metrica['anio']} | {metrica['problema']} | {metrica['regla aplicada']} "
+            f"| {metrica['antes']} | {metrica['despues']} |"
+        )
     config.DIR_DOCS.mkdir(parents=True, exist_ok=True)
-    # "\n".join(lineas) une las lineas con un salto de linea entre cada una;
-    # .write_text(...) escribe ese texto en docs/reporte_calidad.md
     (config.DIR_DOCS / "reporte_calidad.md").write_text("\n".join(lineas) + "\n", encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
 # PROGRAMA PRINCIPAL
 # ---------------------------------------------------------------------------
-def main() -> None:
+def _main_2023() -> None:
     # Lee el archivo Parquet de bronce y lo guarda en la tabla bronce
     bronce = pd.read_parquet(config.DIR_BRONZE / "enerandes_ventas_2023.parquet")
     # len(bronce) es el numero de filas; log lo muestra con la hora
@@ -353,6 +438,39 @@ def main() -> None:
     # Una linea por cada regla
     for m in metricas:
         print(f"   {m['problema']:<42}{m['antes']:>7}{m['despues']:>9}")
+    log(f"Plata: {len(limpias):,} filas limpias y {len(cuarentena)} en cuarentena")
+    log("Reporte en docs/reporte_calidad.md")
+
+
+def main() -> None:
+    tablas_limpias = []
+    tablas_cuarentena = []
+    metricas_totales = []
+    filas_bronce = 0
+    for anio in range(2023, 2027):
+        bronce = pd.read_parquet(config.DIR_BRONZE / f"enerandes_ventas_{anio}.parquet")
+        limpias, cuarentena, metricas = limpiar_anio(bronce, anio)
+        ESQUEMA_VENTAS.validate(limpias, lazy=True)
+        log(f"{anio}: validación Pandera OK ({len(limpias):,} filas)")
+        tablas_limpias.append(limpias)
+        tablas_cuarentena.append(cuarentena)
+        metricas_totales.extend(metricas)
+        filas_bronce += len(bronce)
+
+    limpias = pd.concat(tablas_limpias, ignore_index=True)
+    cuarentena = pd.concat(tablas_cuarentena, ignore_index=True)
+    ESQUEMA_VENTAS.validate(limpias, lazy=True)
+    config.DIR_SILVER.mkdir(parents=True, exist_ok=True)
+    limpias.to_parquet(config.DIR_SILVER / "enerandes_ventas.parquet", index=False)
+    cuarentena.to_parquet(config.DIR_SILVER / "enerandes_cuarentena.parquet", index=False)
+    escribir_reporte(metricas_totales, filas_bronce, len(limpias), len(cuarentena))
+
+    print(f"   {'año':<8}{'problema':<42}{'antes':>7}{'después':>9}")
+    for metrica in metricas_totales:
+        print(
+            f"   {metrica['anio']:<8}{metrica['problema']:<42}"
+            f"{metrica['antes']:>7}{metrica['despues']:>9}"
+        )
     log(f"Plata: {len(limpias):,} filas limpias y {len(cuarentena)} en cuarentena")
     log("Reporte en docs/reporte_calidad.md")
 
