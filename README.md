@@ -164,7 +164,7 @@ La columna de generación conserva la unidad tal como la entrega XM; el resultad
 | Integrante | Enlace |
 |---|---|
 | Andres Cuenta Personal | Pendiente |
-| Andres Mejia Pelaez | Pendiente |
+| Andres Mejia Pelaez | [Video de sustentación EA2](https://drive.google.com/file/d/1m8cGoIUgWz3OU7RlUB35Z9nHFCqZxwLN/view?usp=drive_link) |
 | Data Quality Analyst | Pendiente |
 | BI Analyst / Storyteller | Pendiente |
 
